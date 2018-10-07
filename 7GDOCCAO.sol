@@ -1,4 +1,4 @@
-﻿pragma solidity ^0.4.23;
+pragma solidity ^0.4.23;
 
 import './1GDOCBase.sol';
 import './3GDOCToken.sol';
@@ -35,12 +35,14 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
         bool agree;
     }
 
-    uint256[] private Ratio;
-    uint256[] private Amount;
-    mapping(address => s_Vote) private votesAmount;
-    mapping(address => s_Vote) private votesRatio;
-    mapping(uint256 => s_Count) private amountCounter;
+    uint256[] private ratioOption;
+    uint256[] private amountOption;
+    address[] private ratioAddress;
+    address[] private amountAddress;
+    mapping(address => s_Vote) private ratioVotes;
+    mapping(address => s_Vote) private amountVotes;
     mapping(uint256 => s_Count) private ratioCounter;
+    mapping(uint256 => s_Count) private amountCounter;
     mapping(address => bool) private accessAllowed;
     mapping(address => bool) private lockrun;
 
@@ -133,13 +135,13 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
     }
 
     function setCAORatio(uint256[] _ratio) external onlyOwner {
-        require(_ratio.length == 5 && Ratio.length == 0);
-        Ratio = _ratio;
+        require(_ratio.length == 5 && ratioOption.length == 0);
+        ratioOption = _ratio;
     }
 
     function setCAOAmount(uint256[] _amount) external onlyOwner {
-        require(_amount.length == 5 && Amount.length == 0);
-        Amount = _amount;
+        require(_amount.length == 5 && amountOption.length == 0);
+        amountOption = _amount;
     }
 
     function getCAORatio() external checkTime view returns(
@@ -150,8 +152,9 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
         uint256 Ratio4, 
         uint256 Ratio5)
     {
-        require(Ratio.length == 5 && CAORound > 0);
-        return(CAORound, Ratio[0], Ratio[1], Ratio[2], Ratio[3], Ratio[4]);
+        require(ratioOption.length == 5 && CAORound > 0);
+        return(CAORound, ratioOption[0], ratioOption[1], ratioOption[2], ratioOption[3], 
+        	ratioOption[4]);
     }
 
     function getCAOAmount() external checkTime view returns(
@@ -162,8 +165,9 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
         uint256 Amount4, 
         uint256 Amount5)
     {
-        require(Amount.length == 5 && CAORound > 0);
-        return(CAORound, Amount[0], Amount[1], Amount[2], Amount[3], Amount[4]);
+        require(amountOption.length == 5 && CAORound > 0);
+        return(CAORound, amountOption[0], amountOption[1], amountOption[2], amountOption[3], 
+        	amountOption[4]);
     }
 
     function getTimestamp(
@@ -183,9 +187,33 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
             getHour(_timestamp), getMinute(_timestamp), getSecond(_timestamp));
     }
 
+    function removeRatio() private {
+        for (uint256 i = 0; i < ratioAddress.length - 1; i++)
+            delete ratioVotes[ratioAddress[i]];
+        delete ratioOption;
+        delete ratioAddress;
+        delete ratioCounter[0];
+        delete ratioCounter[1];
+        delete ratioCounter[2];
+        delete ratioCounter[3];
+        delete ratioCounter[4];
+    }
+
+    function removeAmount() private {
+        for (uint256 i = 0; i < amountAddress.length - 1; i++)
+            delete amountVotes[amountAddress[i]];
+        delete amountOption;
+        delete amountAddress;
+        delete amountCounter[0];
+        delete amountCounter[1];
+        delete amountCounter[2];
+        delete amountCounter[3];
+        delete amountCounter[4];
+    }
+
     function initVote(uint8 _days) external onlyOwner {
         require(_days > 0 && _days <= 30 && !votingStatus);
-        require(Ratio.length == 5 && Amount.length == 5);
+        require(ratioOption.length == 5 && amountOption.length == 5);
         CAORound++;
         startTime = now;
         endTime = now + _days * 1 days;
@@ -194,15 +222,15 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
 
     function closeVote() external onlyOwner {
         require(now > endTime && endTime != 0);
-        delete Ratio;
-        delete Amount;
+        removeRatio();
+        removeAmount();
         votingStatus = false;
     }
 
     function ratioVote(bool _agree, uint8 _option) external checkTime platform {
         require(_option > 0 && _option < 6);
-        require(Ratio.length == 5 && CAORound > 0);
-        require(votesRatio[msg.sender].time == 0);
+        require(ratioOption.length == 5 && CAORound > 0);
+        require(ratioVotes[msg.sender].time == 0);
         require(gdocbase.balanceOf(msg.sender) > 0 && votingStatus);
         //Token比重大于3禁止投票
         require(gdocbase.balanceOf(msg.sender) < safeDiv(gdocbase.totalSupply(), 33));
@@ -219,30 +247,33 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
                     voiceWeight);
             }
 
-            votesRatio[msg.sender].time = now;
-            votesRatio[msg.sender].weight = voiceWeight;
-            votesRatio[msg.sender].option = _option;
-            votesRatio[msg.sender].agree = _agree;
+            ratioVotes[msg.sender].time = now;
+            ratioVotes[msg.sender].weight = voiceWeight;
+            ratioVotes[msg.sender].option = _option;
+            ratioVotes[msg.sender].agree = _agree;
+
+            if (ratioVotes[msg.sender].option == 0)
+                ratioAddress.push(msg.sender);
             lockrun[msg.sender] = false;
         }
     }
 
     function revokeRatioVote(uint8 _option) external checkTime platform {
         require(_option > 0 && _option < 6);
-        require(votesRatio[msg.sender].option > 0 
-            && votesRatio[msg.sender].option < 6);
-        require(Ratio.length == 5 && CAORound > 0);
-        require(votesRatio[msg.sender].time > 0);
+        require(ratioVotes[msg.sender].option > 0 
+            && ratioVotes[msg.sender].option < 6);
+        require(ratioOption.length == 5 && CAORound > 0);
+        require(ratioVotes[msg.sender].time > 0);
 
         if (!lockrun[msg.sender]) {
             lockrun[msg.sender] = true;
-            uint256 voiceWeight = votesRatio[msg.sender].weight;
-            bool _agree = votesRatio[msg.sender].agree;
+            uint256 voiceWeight = ratioVotes[msg.sender].weight;
+            bool _agree = ratioVotes[msg.sender].agree;
 
-            votesRatio[msg.sender].time = 0;
-            votesRatio[msg.sender].weight = 0;
-            votesRatio[msg.sender].option = 6;
-            votesRatio[msg.sender].agree = false;
+            ratioVotes[msg.sender].time = 0;
+            ratioVotes[msg.sender].weight = 0;
+            ratioVotes[msg.sender].option = 6;
+            ratioVotes[msg.sender].agree = false;
 
             if (_agree) {
                 ratioCounter[_option - 1].yesCounter = safeSub(ratioCounter[_option - 1].yesCounter, 
@@ -257,8 +288,8 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
 
     function amountVote(bool _agree, uint8 _option) external checkTime platform {
         require(_option > 0 && _option < 6);
-        require(Amount.length == 5 && CAORound > 0);
-        require(votesAmount[msg.sender].time == 0);
+        require(amountOption.length == 5 && CAORound > 0);
+        require(amountVotes[msg.sender].time == 0);
         require(gdocbase.balanceOf(msg.sender) > 0 && votingStatus);
         //Token比重大于3禁止投票
         require(gdocbase.balanceOf(msg.sender) < safeDiv(gdocbase.totalSupply(), 33));
@@ -275,30 +306,33 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
                     voiceWeight);
             }
 
-            votesAmount[msg.sender].time = now;
-            votesAmount[msg.sender].weight = voiceWeight;
-            votesAmount[msg.sender].option = _option;
-            votesAmount[msg.sender].agree = _agree;
+            amountVotes[msg.sender].time = now;
+            amountVotes[msg.sender].weight = voiceWeight;
+            amountVotes[msg.sender].option = _option;
+            amountVotes[msg.sender].agree = _agree;
+
+            if (amountVotes[msg.sender].option == 0)
+                amountAddress.push(msg.sender);
             lockrun[msg.sender] = false;
         }
     }
 
     function revokeAmountVote(uint8 _option) external checkTime platform {
         require(_option > 0 && _option < 6);
-        require(votesAmount[msg.sender].option > 0 
-            && votesAmount[msg.sender].option < 6);
-        require(Amount.length == 5 && CAORound > 0);
-        require(votesAmount[msg.sender].time > 0);
+        require(amountVotes[msg.sender].option > 0 
+            && amountVotes[msg.sender].option < 6);
+        require(amountOption.length == 5 && CAORound > 0);
+        require(amountVotes[msg.sender].time > 0);
 
         if (!lockrun[msg.sender]) {
             lockrun[msg.sender] = true;
-            uint256 voiceWeight = votesAmount[msg.sender].weight;
-            bool _agree = votesAmount[msg.sender].agree;
+            uint256 voiceWeight = amountVotes[msg.sender].weight;
+            bool _agree = amountVotes[msg.sender].agree;
 
-            votesAmount[msg.sender].time = 0;
-            votesAmount[msg.sender].weight = 0;
-            votesAmount[msg.sender].option = 6;
-            votesAmount[msg.sender].agree = false;
+            amountVotes[msg.sender].time = 0;
+            amountVotes[msg.sender].weight = 0;
+            amountVotes[msg.sender].option = 6;
+            amountVotes[msg.sender].agree = false;
 
             if (_agree) {
                 amountCounter[_option - 1].yesCounter = safeSub(amountCounter[_option - 1].yesCounter, 
@@ -313,7 +347,7 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
 
     function getVotesResult() external view platform returns 
     (uint256 Round, uint256 finalizedRatio, uint256 finalizedAmout) {
-        require(now > endTime && endTime != 0 && !votingStatus);
+        require(now > endTime && endTime != 0);
         uint256 _ratioyes = 0;
         uint256 _rationo = 0;
         uint256 _ratioweight = 0;
@@ -331,15 +365,15 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
             _amountyes = safeAdd(_amountyes, amountCounter[i].yesCounter);
             _amountno = safeAdd(_amountno, amountCounter[i].noCounter);
         }
-        _ratioweight = safeMul(safeDiv(ratioCounter[0].yesCounter, (10 ** 18)), Ratio[0]);
+        _ratioweight = safeMul(safeDiv(ratioCounter[0].yesCounter, (10 ** 18)), ratioOption[0]);
         _ratioweight = safeAdd(_ratioweight, 
-            safeMul(safeDiv(ratioCounter[1].yesCounter, (10 ** 18)), Ratio[1]));
+            safeMul(safeDiv(ratioCounter[1].yesCounter, (10 ** 18)), ratioOption[1]));
         _ratioweight = safeAdd(_ratioweight, 
-            safeMul(safeDiv(ratioCounter[2].yesCounter, (10 ** 18)), Ratio[2]));
+            safeMul(safeDiv(ratioCounter[2].yesCounter, (10 ** 18)), ratioOption[2]));
         _ratioweight = safeAdd(_ratioweight, 
-            safeMul(safeDiv(ratioCounter[3].yesCounter, (10 ** 18)), Ratio[3]));
+            safeMul(safeDiv(ratioCounter[3].yesCounter, (10 ** 18)), ratioOption[3]));
         _ratioweight = safeAdd(_ratioweight, 
-            safeMul(safeDiv(ratioCounter[4].yesCounter, (10 ** 18)), Ratio[4]));
+            safeMul(safeDiv(ratioCounter[4].yesCounter, (10 ** 18)), ratioOption[4]));
 
         //ratio按加权平均计算
         ratio = safeDiv(_ratioweight, safeDiv(_ratioyes, (10 ** 18)));
@@ -347,20 +381,20 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
         //amount默认三分之二同意即生效，否则按加权平均计算
         for(i = 0; i < 5; i++) {
             if (amountCounter[i].yesCounter > safeMul(safeDiv(safeAdd(_amountyes, _amountno), 3), 2)) {
-                amount = Amount[i];
+                amount = amountOption[i];
                 break;
             }
         }
         if (amount == 0) {
-            _amountweight = safeMul(safeDiv(amountCounter[0].yesCounter, (10 ** 18)), Amount[0]);
+            _amountweight = safeMul(safeDiv(amountCounter[0].yesCounter, (10 ** 18)), amountOption[0]);
             _amountweight = safeAdd(_amountweight, 
-                safeMul(safeDiv(amountCounter[1].yesCounter, (10 ** 18)), Amount[1]));
+                safeMul(safeDiv(amountCounter[1].yesCounter, (10 ** 18)), amountOption[1]));
             _amountweight = safeAdd(_amountweight, 
-                safeMul(safeDiv(amountCounter[2].yesCounter, (10 ** 18)), Amount[2]));
+                safeMul(safeDiv(amountCounter[2].yesCounter, (10 ** 18)), amountOption[2]));
             _amountweight = safeAdd(_amountweight, 
-                safeMul(safeDiv(amountCounter[3].yesCounter, (10 ** 18)), Amount[3]));
+                safeMul(safeDiv(amountCounter[3].yesCounter, (10 ** 18)), amountOption[3]));
             _amountweight = safeAdd(_amountweight, 
-                safeMul(safeDiv(amountCounter[4].yesCounter, (10 ** 18)), Amount[4]));
+                safeMul(safeDiv(amountCounter[4].yesCounter, (10 ** 18)), amountOption[4]));
             amount = safeDiv(_amountweight, safeDiv(_amountyes, (10 ** 18)));
         }
         return (CAORound, ratio, amount);
