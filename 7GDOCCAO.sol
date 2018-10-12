@@ -247,13 +247,13 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
                     voiceWeight);
             }
 
+            if (ratioVotes[msg.sender].option == 0)
+                ratioAddress.push(msg.sender);
             ratioVotes[msg.sender].time = now;
             ratioVotes[msg.sender].weight = voiceWeight;
             ratioVotes[msg.sender].option = _option;
             ratioVotes[msg.sender].agree = _agree;
 
-            if (ratioVotes[msg.sender].option == 0)
-                ratioAddress.push(msg.sender);
             lockrun[msg.sender] = false;
         }
     }
@@ -305,14 +305,14 @@ contract GDOCCAO is SafeMath, DateTime { //CAO合约
                 amountCounter[_option - 1].noCounter = safeAdd(amountCounter[_option - 1].noCounter, 
                     voiceWeight);
             }
-
+            
+            if (amountVotes[msg.sender].option == 0)
+                amountAddress.push(msg.sender);
             amountVotes[msg.sender].time = now;
             amountVotes[msg.sender].weight = voiceWeight;
             amountVotes[msg.sender].option = _option;
             amountVotes[msg.sender].agree = _agree;
 
-            if (amountVotes[msg.sender].option == 0)
-                amountAddress.push(msg.sender);
             lockrun[msg.sender] = false;
         }
     }
